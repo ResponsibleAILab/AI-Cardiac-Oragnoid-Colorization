@@ -168,7 +168,23 @@ class MainModel(nn.Module):
         self.loss_G = self.loss_G_GAN + self.loss_G_L1
         self.loss_G.backward()
     
-    def optimize(self, lr_G=2e-5, lr_D=2e-7, beta1=0.5, beta2=0.999):
+    # def optimize(self, lr_G=2e-5, lr_D=2e-7, beta1=0.5, beta2=0.999):
+    #     self.forward()
+    #     self.net_D.train()
+    #     self.set_requires_grad(self.net_D, True)
+    #     self.opt_D = optim.Adam(self.net_D.parameters(), lr=lr_D, betas=(beta1, beta2))  # Move optimizer initialization here
+    #     self.opt_D.zero_grad()
+    #     self.backward_D()
+    #     self.opt_D.step()
+        
+    #     self.net_G.train()
+    #     self.set_requires_grad(self.net_D, False)
+    #     self.opt_G = optim.Adam(self.net_G.parameters(), lr=lr_G, betas=(beta1, beta2))  # Move optimizer initialization here
+    #     self.opt_G.zero_grad()
+    #     self.backward_G()
+    #     self.opt_G.step()
+    
+    def optimize_discriminator(self, lr_G=2e-5, lr_D=2e-7, beta1=0.5, beta2=0.999):
         self.forward()
         self.net_D.train()
         self.set_requires_grad(self.net_D, True)
@@ -176,7 +192,9 @@ class MainModel(nn.Module):
         self.opt_D.zero_grad()
         self.backward_D()
         self.opt_D.step()
-        
+    
+    def optimize_generator(self, lr_G=2e-5, lr_D=2e-7, beta1=0.5, beta2=0.999):
+        self.forward()    
         self.net_G.train()
         self.set_requires_grad(self.net_D, False)
         self.opt_G = optim.Adam(self.net_G.parameters(), lr=lr_G, betas=(beta1, beta2))  # Move optimizer initialization here
@@ -185,7 +203,7 @@ class MainModel(nn.Module):
         self.opt_G.step()
     
 
-def train(model, train_dl, val_dl, epochs, display_every=2000): # changed display_every from 200
+def train(model, train_dl, val_dl, epochs, generator_steps=1, discriminator_steps=1, display_every=2000): # changed display_every from 200
     data = next(iter(val_dl)) # getting a batch for visualizing the model output after fixed intrvals
     for e in range(epochs):
         loss_meter_dict = utils.create_loss_meters() # function returing a dictionary of objects to 
@@ -193,7 +211,14 @@ def train(model, train_dl, val_dl, epochs, display_every=2000): # changed displa
         # log_results(loss_meter_dict)
         for data in tqdm(train_dl):
             model.setup_input(data)
-            model.optimize()
+            # model.optimize()  # Update both generator and discriminator in one call
+            # Update Generator
+            for _ in range(generator_steps):
+                model.optimize_generator()
+            # Update discriminator
+            for _ in range(discriminator_steps):
+                model.optimize_discriminator()
+
             utils.update_losses(model, loss_meter_dict, count=data['L'].size(0)) # function updating the log objects
             i += 1
             # log_results(loss_meter_dict)

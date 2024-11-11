@@ -33,7 +33,7 @@ Ls, abs_ = data['L'], data['ab']
 gan_model = model.MainModel(attention=params.use_cbam)
 print(gan_model)
 
-model.train(gan_model, train_dl, val_dl, 600)
+model.train(gan_model, train_dl, val_dl, epochs=600 ,generator_steps=params.generator_steps, discriminator_steps=params.discriminator_steps)
 
 
 

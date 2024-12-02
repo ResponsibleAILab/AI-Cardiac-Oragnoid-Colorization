@@ -20,21 +20,17 @@ val_paths = paths_subset[val_idxs]
 print("# of Train paths", len(train_paths), "# of Val paths", len(val_paths))
 
 # loading dataset
-train_dl = utils.make_dataloaders(paths=train_paths, split='train')
+if params.gen_individual_fl:
+    train_dl = utils.custom_dataloaders(paths=train_paths, split='train')
+else:
+    train_dl = utils.make_dataloaders(paths=train_paths, split='train')
+
 val_dl = utils.make_dataloaders(paths=val_paths, split='val')
-
-data = next(iter(train_dl))
-Ls, abs_ = data['L'], data['ab']
-
-
-# discriminator = base_model.PatchDiscriminator(3) 
-# out = discriminator(params.dummy_input)
 
 gan_model = model.MainModel(attention=params.use_cbam)
 print(gan_model)
 
-model.train(gan_model, train_dl, val_dl, epochs=600 ,generator_steps=params.generator_steps, discriminator_steps=params.discriminator_steps)
+model.train(gan_model, train_dl, val_dl, epochs=params.epochs ,generator_steps=params.generator_steps, discriminator_steps=params.discriminator_steps)
 
 
-
-torch.save(model.state_dict(), params.model_path+"/"+params.model_name)
+torch.save(gan_model.state_dict(), params.model_path+"/"+params.model_name)

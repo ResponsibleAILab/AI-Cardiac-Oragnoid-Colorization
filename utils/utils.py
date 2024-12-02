@@ -48,6 +48,62 @@ class ColorizationDataset(Dataset):
         noise = np.random.normal(0, 1, img.shape).astype(np.float32)
         noisy_img = np.clip(img + noise, 0, 255).astype(np.uint8)
         return Image.fromarray(noisy_img)
+    
+class CustomColorizationDataset(Dataset):
+    """
+    A custom dataset class for colorization tasks, specifically designed to handle
+    both main images and their corresponding fluorescence images.
+
+    Returns:
+        dict: A dictionary containing the lightness channel from the main image ('L')
+                and the fluorescence image of the individual color channel.
+    """
+    def __init__(self, paths, split='train'):
+        if split == 'train':
+            self.transforms = transforms.Compose([
+                transforms.Resize((params.SIZE, params.SIZE),  interpolation=transforms.InterpolationMode.BICUBIC)
+                # avoiding random transformations to avoid disorientation of main img and fl_img
+            ])
+        elif split == 'val':
+            self.transforms = transforms.Resize((params.SIZE, params.SIZE), interpolation=transforms.InterpolationMode.BICUBIC)
+        
+        self.split = split
+        self.size = params.SIZE
+        self.paths = paths
+    
+    def __getitem__(self, idx):
+        img = Image.open(self.paths[idx]).convert("RGB")
+        original_path = self.paths[idx]
+        # Overlay image
+        img = self.transforms(img)
+        img = np.array(img)
+        img_lab = rgb2lab(img).astype("float32") # Converting RGB to L*a*b
+        img_lab = transforms.ToTensor()(img_lab)
+        L = img_lab[[0], ...] / 50. - 1. # Between -1 and 1
+        ab = img_lab[[1, 2], ...] / 110. # Between -1 and 1
+        if params.gen_individual_fl:
+            # Individual Fluorescence channel
+            fl_path = original_path.replace(params.main_path, params.fluorescence_path)
+            fl_path = [p.replace('.jpg', '.png') if p.endswith('.jpg') else p.replace('.tif', '.png') if p.endswith('.tif') else p for p in fl_path]
+            fl_img = Image.open(fl_path).convert("RGB")
+            fl_img = self.transforms(fl_img)
+            fl_img = np.array(fl_img)
+            fl_img_lab = rgb2lab(fl_img).astype("float32")
+            fl_img_lab = transforms.ToTensor()(fl_img_lab)
+            fl_L = fl_img_lab[[0], ...] / 50. - 1. # Between -1 and 1
+            fl_ab = fl_img_lab[[1, 2], ...] / 110. # Between -1 and 1
+            return {'L': L, 'ab': fl_ab}
+
+        return {'L': L, 'ab': ab}
+    
+    def __len__(self):
+        return len(self.paths)
+
+    def add_gaussian_noise(self, img):
+        img = np.array(img)
+        noise = np.random.normal(0, 1, img.shape).astype(np.float32)
+        noisy_img = np.clip(img + noise, 0, 255).astype(np.uint8)
+        return Image.fromarray(noisy_img)
 
 class GANLoss(nn.Module):
     def __init__(self, gan_mode='vanilla', real_label=1.0, fake_label=0.0):
@@ -110,8 +166,15 @@ def init_model(model, device):
     model = init_weights(model)
     return model
 
-def make_dataloaders(batch_size=16, n_workers=4, pin_memory=True, **kwargs): # A handy function to make our dataloaders # changed batch size from 16
+def make_dataloaders(batch_size=params.batch_size, n_workers=4, pin_memory=True, **kwargs): # A handy function to make our dataloaders # changed batch size from 16
     dataset = ColorizationDataset(**kwargs)
+
+    dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=n_workers,
+                            pin_memory=pin_memory)
+    return dataloader
+
+def custom_dataloaders(batch_size=params.batch_size, n_workers=4, pin_memory=True, **kwargs): # A handy function to make our dataloaders # changed batch size from 16
+    dataset = CustomColorizationDataset(**kwargs)
 
     dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=n_workers,
                             pin_memory=pin_memory)

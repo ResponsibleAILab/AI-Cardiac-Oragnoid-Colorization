@@ -1,4 +1,4 @@
-# Cardiac_Organoid_Fluorescence_Generation
+# AI Cardiac Organoid Colorization
 Preprint version of the paper: https://pmc.ncbi.nlm.nih.gov/articles/PMC11326121/
 
 ## Types of Models
